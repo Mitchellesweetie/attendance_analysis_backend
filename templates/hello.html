@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>Upload & Process Excel</title>
+    <script>
+        function uploadFile(event) {
+            event.preventDefault();
+
+            let formData = new FormData(document.getElementById("uploadForm"));
+
+            fetch("/upload", {
+                method: "POST",
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    alert("Error: " + data.error);
+                } else {
+                    document.getElementById("adultPercentage").innerText = "Adult Percentage: " + data.adult_percentage + "%";
+                    document.getElementById("downloadLink").innerHTML = <a href="${data.download_url}">Download Processed File</a>;
+                }
+            })
+            .catch(error => console.error("Error:", error));
+        }
+    </script>
+        <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
+<style>
+  th{text-align: center;
+    
+  }
+</style>
+      </head>
+<body>
+    <!-- <h2>Upload an Excel File</h2>
+    <form id="uploadForm" onsubmit="uploadFile(event)">
+        <input type="file" name="file" required><br><br>
+        <button type="submit">Upload & Process</button>
+    </form>
+
+    <p id="adultPercentage"></p>
+    <p id="downloadLink"></p> -->
+    
+
+    <form action="/submit" method="post" enctype="multipart/form-data">
+        <input type="file" name="file" id="" f  required>
+        <button type="submit">submit</button>
+    </form>
+    {% if selected_file %}
+    <a href="/download/{{ selected_file }}" class="btn btn-success mb-3">Download {{ selected_file }}</a>
+    {% endif %}
+<form action="/index" method="post">
+      <select class="form-select" name="selected_file" required>
+          <option value="" selected>Select a file</option>
+          {% for file in file_list %}
+          <option value="{{ file }}">{{ file }}</option>
+          {% endfor %}
+      </select>
+      <button type="submit">View</button>
+  </form>
+  {% if table_html %}
+  <div class="card">
+      <div class="card-body">
+          <h5 class="card-title">Excel Data</h5>
+          <div class="table-responsive">
+              {{ table_html | safe }}
+          </div>
+      </div>
+  </div>
+{% else %}
+  <div class="alert alert-warning text-center">No data available. Please select a file.</div>
+{% endif %}
+
+
+       
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
+</body>
+</html>
