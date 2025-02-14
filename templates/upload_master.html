@@ -1574,7 +1574,7 @@ margin-left:-30px;
           <div class="card">
               <div class="card-body">
                   <h5 class="card-title mb-4">Merge Files</h5>
-                  <form action="/merge" method="post">
+                  <form action="/merge" method="post" enctype="multipart/form-data">
                       <div class="row g-3 mb-4">
                           <div class="col-md-6">
                               <label for="cleanedOutput" class="form-label">Cleaned Output File</label>
@@ -1608,6 +1608,9 @@ margin-left:-30px;
                   <!-- Results Display -->
                   {% if table_html %}
                   <div class="card mt-4">
+                    <h5>Female:{{female}}</h5>
+                    <h5>Male:{{male}}</h5>
+
                       <div class="card-body">
                           <h5 class="card-title mb-3">Final Data</h5>
                           <div class="table-responsive">
