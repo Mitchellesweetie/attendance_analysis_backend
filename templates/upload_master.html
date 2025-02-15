@@ -1610,14 +1610,17 @@ margin-left:-30px;
                           </a>
                       </div>
                       
-                      {% if visualization_image %}
                       <div class="card">
                           <div class="card-body">
                               <h5 class="card-title mb-3">Data Visualization</h5>
-                              <img src="{{ visualization_image }}" alt="Data Visualization" class="img-fluid rounded">
-                          </div>
+                              {% if img_base64 %}
+                              <img src="data:image/png;base64,{{ img_base64 }}" alt="Gender Distribution">
+                              <img src="data:image/png;base64,{{ imgbase64 }}" alt="Gender Distribution">
+
+                          {% endif %}
+                                                
+                        </div>
                       </div>
-                      {% endif %}
                   </div>
 
                   <!-- Results Display -->
@@ -1631,6 +1634,10 @@ margin-left:-30px;
                                       <h6>Female: <span class="badge bg-info">{{female}}</span></h6>
                                       <h6>Male: <span class="badge bg-info">{{male}}</span></h6>
                                   </div>
+                                  <div class="d-flex gap-4">
+                                    <h6>Students: <span class="badge bg-info">{{students}}</span></h6>
+                                    <h6>Public Servants: <span class="badge bg-info">{{other}}</span></h6>
+                                </div>
                               </div>
                           </div>
                           <h5 class="card-title mb-3">Final Data</h5>

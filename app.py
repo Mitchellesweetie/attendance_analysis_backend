@@ -247,8 +247,11 @@ def merge():
     selected_fil = request.form.get("selected_fil", "")
 
     table_html = ""
-    male=''
-    female=''
+    male = ''
+    female = ''
+    students=''
+    other=''
+    imgbase64=None
     img_base64 = None  # Store the histogram image
 
     if selected_file and selected_fil:
@@ -260,25 +263,34 @@ def merge():
             df2 = pd.read_excel(file_path2)
 
             df1.columns = df1.columns.str.strip().str.lower()
-            df2.columns = df2.columns.str.strip().str.lower()
+            # df2.columns = df2.columns.str.strip().str.lower()
+
+            df2.columns = df2.columns.astype(str).str.strip().str.lower()
+            
 
             if "email" in df1.columns and "email" in df2.columns:
                 df1["email"] = df1["email"].str.strip().str.lower()
                 df2["email"] = df2["email"].str.strip().str.lower()
                 merged_df = pd.merge(df1, df2, on="email", how="inner")  # Merged data
+                merged_df.columns = merged_df.columns.str.replace(r'(_x|_y)$', '', regex=True)
+                female = merged_df['gender'].value_counts().get('Female', 0)
+                male = merged_df['gender'].value_counts().get('Male', 0)
+                other = merged_df['select your job category'].value_counts().get('Public Servant', 0)
+                students = merged_df['select your job category'].value_counts().get('Other', 0)
 
-                female = df2['gender'].value_counts().get('female', 0)
-                male = df2['gender'].value_counts().get('male', 0)
+                
 
                 # Convert merged data to HTML table
                 table_html = merged_df.to_html(classes="table table-striped-columns", index=False)
                 merged_filename = f"merged_{secure_filename(selected_file)}_{secure_filename(selected_fil)}.xlsx"
                 merged_path = os.path.join(MERGED_FOLDER, merged_filename)
+                
                 merged_df.to_excel(merged_path, index=False)
+                
 
                 # Generate histogram
                 plt.figure(figsize=(6, 4))
-                df2['gender'].value_counts().plot(kind='bar', color=['blue', 'pink'])
+                merged_df['gender'].value_counts().plot(kind='bar', color=['blue', 'blue'])
                 plt.xlabel('Gender')
                 plt.ylabel('Count')
                 plt.title('Gender Distribution')
@@ -289,12 +301,25 @@ def merge():
                 img_io.seek(0)
                 plt.close()
                 img_base64 = base64.b64encode(img_io.getvalue()).decode('utf-8')
+                # print({img_base64})
+               
+                #students and other
+                plt.figure(figsize=(6, 4))
+                merged_df['select your job category'].value_counts().plot(kind='bar', color=['blue', 'blue'])
+                plt.xlabel('Gender')
+                plt.ylabel('Count')
+                plt.title('Category interms of job Distribution')
 
-            else:
-                table_html = "<p>Error: 'email' column not found in one or both files.</p>"
+                # Convert plot to base64
+                img_io = io.BytesIO()
+                plt.savefig(img_io, format='png')
+                img_io.seek(0)
+                plt.close()
+                imgbase64 = base64.b64encode(img_io.getvalue()).decode('utf-8')
 
         except Exception as e:
             table_html = f"<p>Error merging files: {str(e)}</p>"
+
 
     return render_template(
         'upload_master.html',
@@ -305,7 +330,10 @@ def merge():
         selected_fil=selected_fil,
         male=male,
         female=female,
-        img_base64=img_base64 ) #
+        img_base64=img_base64,
+        imgbase64=imgbase64,other=other,students=students
+    )
+
 #posting the excel to be merged and validate with
 @app.route('/combine',methods=['POST','GET'])
 def combine_excel():
