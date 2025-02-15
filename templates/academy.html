@@ -40,7 +40,7 @@
 	<link rel="stylesheet" href="../static/header-colors.css">
 	<title> SMART ACADEMY </title>
     <link rel="icon" href="https://register.smartacademy.go.ke/static/favicon.ico" type="image/x-icon">
-    <script>
+    <!-- <script>
       function filterData() {
           let formData = new FormData();
           let selectedFile = document.getElementById('selected_file').value;
@@ -54,7 +54,7 @@
           formData.append("selected_file", selectedFile);
           formData.append("filter", filterInput);
 
-          fetch('/filter', {
+          fetch('/submit', {
               method: 'POST',
               body: formData
           })
@@ -68,7 +68,7 @@
           })
           .catch(error => console.error('Error:', error));
       }
-  </script>
+  </script> -->
     <style>
         .fa-edit{
             color: #02953e;
@@ -1059,6 +1059,8 @@
 							
                         <li> <a class="has-arrow" href="/"><i class="bx bx-right-arrow-alt"></i>Upload Attendance</a></li>
 						<li> <a class="has-arrow" href="/upload_master"><i class="bx bx-right-arrow-alt"></i>Master Data</a></li>
+            <li> <a class="has-arrow" href="/dumpy_data"><i class="bx bx-right-arrow-alt"></i>Dumpy data</a></li>
+
 						<!-- <li> <a class="has-arrow" href="https://register.smartacademy.go.ke/my-groups/"><i class="bx bx-right-arrow-alt"></i>Groups</a></li>
 						<li> <a class="has-arrow" href="https://register.smartacademy.go.ke/class-schedules/"><i class="bx bx-right-arrow-alt"></i>Time Table</a></li>
 						 -->
@@ -1606,30 +1608,28 @@ margin-left:-30px;
           <!-- Main Content Card -->
           <div class="card">
               <div class="card-body">
-                  <div class="row mb-4">
-                      <!-- File Selection -->
-                      <div class="col-md-6">
-                        <form action="/" method="post">
-                            <div class="d-flex gap-2">
-                                <select class="form-select" id="selected_file" name="selected_file" required>
-                                    <option value="" selected>Select a file</option>
-                                    {% for file in file_list %}
-                                    <option value="{{ file }}" {% if file == selected_file %}selected{% endif %}>{{ file }}</option>
-                                    {% endfor %}
-                                </select>
-                                <button type="submit" class="btn btn-secondary">View</button>
-                            </div>
-                        </form>
-                    </div>
-            
-                    <!-- Search Form -->
-                    <div class="col-md-6">
-                        <div class="d-flex gap-2">
-                            <input type="text" name="filter" class="form-control" placeholder="Search email or days..." id="filter">
-                            <button onclick="filterData()" class="btn btn-secondary">Search</button>
-                        </div>
-                    </div>
+                <div class="row mb-4 align-items-center">
+                  <!-- File Selection -->
+                  <div class="col-md-6">
+                    <form action="/" method="post" class="d-flex gap-2">
+                      <select class="form-select" id="selected_file" name="selected_file" required>
+                        <option value="" selected>Select a file</option>
+                        {% for file in file_list %}
+                          <option value="{{ file }}" {% if file == selected_file %}selected{% endif %}>{{ file }}</option>
+                        {% endfor %}
+                      </select>
+                      <button type="submit" class="btn btn-secondary" name="action" value="view">View</button>
+                      <input type="text" name="filter" class="form-control" placeholder="Search email or days..." id="filter">
+                      <button class="btn btn-secondary" type="submit" name="action" value="search">Search</button>
+                    </form>
                   </div>
+                  
+                  <!-- Search Form -->
+                  <!-- <div class="col-md-6">
+                          <input type="text" name="filter" class="form-control" placeholder="Search email or days..." id="filter">
+                          <button onclick="filterData()" class="btn btn-secondary" type="submit">Search</button>
+                  </div> -->
+              </div>
                  
 
                   <!-- Download Button -->
