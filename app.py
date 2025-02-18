@@ -24,14 +24,65 @@ ACCESS_FOLDER="access"
 MERGED_FOLDER="merged"
 
 Path(OUTPUT_FOLDER).mkdir(parents=True, exist_ok=True)
-Path(UPLOAD_FOLDER).mkdir(parents=True, exist_ok=True)
+Path(UPLOAD_FOLDER).mkdir(parents=True, exist_ok=True) #remove
 Path(COMBINE_FOLDER).mkdir(parents=True, exist_ok=True)
-Path(ACCESS_FOLDER).mkdir(parents=True, exist_ok=True)
+Path(ACCESS_FOLDER).mkdir(parents=True, exist_ok=True) #remove
 Path(MERGED_FOLDER).mkdir(parents=True, exist_ok=True)
 
 
 
 app = Flask(__name__)
+@app.route('/dumpy_data', methods=['GET', 'POST'])
+def dummpy_data():
+    try:
+        # List files in OUTPUT_FOLDER and ACCESS_FOLDER
+        file_list = os.listdir(OUTPUT_FOLDER)
+        list_access = os.listdir(ACCESS_FOLDER)
+
+        if request.method == 'POST':
+            # Get the file name from the form submission
+            file_name = request.form.get('file_name')
+
+            if file_name:
+                file_path = os.path.join(OUTPUT_FOLDER, file_name)
+
+                # Check if the file exists and delete it
+                if os.path.isfile(file_path):
+                    os.remove(file_path)
+                else:
+                    return jsonify({'error': 'File not found'}), 404
+
+        return  render_template('dumpy_data.html', list=file_list, list_access=list_access)
+
+    except Exception as e:
+        # Handle any errors
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/dumpy_acess', methods=['GET', 'POST'])
+def dumpy_data():
+    try:
+        # List files in OUTPUT_FOLDER and ACCESS_FOLDER
+        # file_list = os.listdir(OUTPUT_FOLDER)
+        list_access = os.listdir(ACCESS_FOLDER)
+
+        if request.method == 'POST':
+            # Get the file name from the form submission
+            file_name = request.form.get('file_nam')
+
+            if file_name:
+                file_path = os.path.join(ACCESS_FOLDER, file_name)
+
+                # Check if the file exists and delete it
+                if os.path.isfile(file_path):
+                    os.remove(file_path)
+                else:
+                    return jsonify({'error': 'File not found'}), 404
+
+        return redirect(url_for('dumpy_data'))
+
+    except Exception as e:
+        # Handle any errors
+        return jsonify({'error': str(e)}), 500
 
 
 @app.route('/', methods=['GET', 'POST'])
@@ -267,11 +318,14 @@ def merge():
 
             df2.columns = df2.columns.astype(str).str.strip().str.lower()
             
+            
 
             if "email" in df1.columns and "email" in df2.columns:
                 df1["email"] = df1["email"].str.strip().str.lower()
                 df2["email"] = df2["email"].str.strip().str.lower()
                 merged_df = pd.merge(df1, df2, on="email", how="inner")  # Merged data
+                # merged_df = merged_df.drop(columns=["select training date","training time"])
+
                 merged_df.columns = merged_df.columns.str.replace(r'(_x|_y)$', '', regex=True)
                 female = merged_df['gender'].value_counts().get('Female', 0)
                 male = merged_df['gender'].value_counts().get('Male', 0)
@@ -290,7 +344,7 @@ def merge():
 
                 # Generate histogram
                 plt.figure(figsize=(6, 4))
-                merged_df['gender'].value_counts().plot(kind='bar', color=['blue', 'blue'])
+                df2['gender'].value_counts().plot(kind='bar', color=['blue', 'blue'])
                 plt.xlabel('Gender')
                 plt.ylabel('Count')
                 plt.title('Gender Distribution')
@@ -305,8 +359,8 @@ def merge():
                
                 #students and other
                 plt.figure(figsize=(6, 4))
-                merged_df['select your job category'].value_counts().plot(kind='bar', color=['blue', 'blue'])
-                plt.xlabel('Gender')
+                df2['select your job category'].value_counts().plot(kind='bar', color=['blue', 'blue'])
+                plt.xlabel('Job')
                 plt.ylabel('Count')
                 plt.title('Category interms of job Distribution')
 
@@ -377,7 +431,7 @@ def combine_excel():
             print(merged_df)
 
         # Save the cleaned file
-        merged_df = merged_df.drop(columns=["name_y","organization"])
+        merged_df = merged_df.drop(columns=["name_y","organization","select training date","training time"])
         merged_df.columns = merged_df.columns.str.replace(r'(_x|_y)$', '', regex=True)
         merged_df = merged_df.rename(columns={'name_x': 'Full Name'})
 
