@@ -3,6 +3,7 @@
 from flask import Flask,render_template,request,redirect,url_for,jsonify,send_file
 import pandas as pd
 import numpy as num
+import random
 import os
 import shutil
 from datetime import datetime
@@ -22,16 +23,86 @@ OUTPUT_FOLDER = "output"
 COMBINE_FOLDER = "combine"
 ACCESS_FOLDER="access"
 MERGED_FOLDER="merged"
+RANDOMIZED='randomize'
 
 Path(OUTPUT_FOLDER).mkdir(parents=True, exist_ok=True)
-Path(UPLOAD_FOLDER).mkdir(parents=True, exist_ok=True) #remove
+Path(UPLOAD_FOLDER).mkdir(parents=True, exist_ok=True) 
 Path(COMBINE_FOLDER).mkdir(parents=True, exist_ok=True)
-Path(ACCESS_FOLDER).mkdir(parents=True, exist_ok=True) #remove
+Path(ACCESS_FOLDER).mkdir(parents=True, exist_ok=True)
 Path(MERGED_FOLDER).mkdir(parents=True, exist_ok=True)
+Path(RANDOMIZED).mkdir(parents=True, exist_ok=True)
+
 
 
 
 app = Flask(__name__)
+@app.route('/random', methods=['POST','GET'])
+def randomize_exce():
+    return render_template('random.html')
+#download the splited file
+@app.route('/downloads/<filename>')
+def download_files(filename):
+    file_path = os.path.join(OUTPUT_FOLDER, filename)
+    try:
+        return send_file(file_path, as_attachment=True)
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': f'Error downloading file: {str(e)}'}), 500
+    
+
+@app.route('/rando', methods=['POST','GET'])
+def randomize_excel():
+    try:
+        if 'file' not in request.files:
+            return jsonify({'status': 'error', 'message': 'No file uploaded'}), 400
+
+        file = request.files['file']
+        if file.filename == '':
+            return jsonify({'status': 'error', 'message': 'No file selected'}), 400
+
+        num_sheets = int(request.form.get('num_sheets', 3))
+        df = pd.read_excel(file)
+        
+
+        df_shuffled = df.sample(frac=1, random_state=random.randint(1, 10000)).reset_index(drop=True)
+        df_splits = [df_shuffled.iloc[i::num_sheets] for i in range(num_sheets)]
+
+        output_filename = f"randomized_{file.filename}"
+        output_path = os.path.join(RANDOMIZED, output_filename)
+       
+        
+        df.columns = df.columns.str.lower()
+        female = int(df['gender'].value_counts().get('Female', 0))
+        male = int(df['gender'].value_counts().get('Male', 0))
+
+        plt.figure(figsize=(6, 4))
+        df['gender'].value_counts().plot(kind='bar', color=['blue', 'blue'])
+        plt.xlabel('Gender')
+        plt.ylabel('Count')
+        plt.title('Gender Distribution')
+        print(female)
+
+        img_io = io.BytesIO()
+        plt.savefig(img_io, format='png')
+        img_io.seek(0)
+        plt.close()
+        img_base64 = base64.b64encode(img_io.getvalue()).decode('utf-8')
+
+        with pd.ExcelWriter(output_path, engine="openpyxl") as writer:
+            for i, df_part in enumerate(df_splits, start=1):
+                df_part.to_excel(writer, sheet_name=f"Sheet{i}", index=False)
+
+        return jsonify({
+            'status': 'success',
+            'message': f"{output_filename}",
+            'download_path': f"/download/{output_filename}",
+            'chart': img_base64,
+            'female':female,
+            'male':male
+        })
+
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
 @app.route('/dumpy_data', methods=['GET', 'POST'])
 def dummpy_data():
     try:
@@ -61,28 +132,27 @@ def dummpy_data():
 @app.route('/dumpy_acess', methods=['GET', 'POST'])
 def dumpy_data():
     try:
-        # List files in OUTPUT_FOLDER and ACCESS_FOLDER
-        # file_list = os.listdir(OUTPUT_FOLDER)
-        list_access = os.listdir(ACCESS_FOLDER)
+        list_access = os.listdir(ACCESS_FOLDER)  # Get all files in the folder
 
         if request.method == 'POST':
-            # Get the file name from the form submission
             file_name = request.form.get('file_nam')
 
             if file_name:
                 file_path = os.path.join(ACCESS_FOLDER, file_name)
 
-                # Check if the file exists and delete it
+                # Check if the file exists before deleting
                 if os.path.isfile(file_path):
                     os.remove(file_path)
+                    return jsonify({'success': True, 'message': f'{file_name} deleted'})
                 else:
                     return jsonify({'error': 'File not found'}), 404
 
-        return redirect(url_for('dumpy_data'))
+        # Return the list of files in JSON format when accessed via GET
+        return jsonify({'files': list_access})
 
     except Exception as e:
-        # Handle any errors
         return jsonify({'error': str(e)}), 500
+
 
 
 @app.route('/', methods=['GET', 'POST'])
@@ -98,6 +168,7 @@ def uploadataforanalysis():
     emails = ''
     table_html = ''
     file_path = ''
+    alert_message=None
 
     # Handle file view action
     if action == 'view' and request.form.get("selected_file"):
@@ -108,7 +179,10 @@ def uploadataforanalysis():
             df = pd.read_excel(file_path)
             emails = df['email'].count()
             table_html = df.to_html(classes="table table-striped-columns", index=False)
+
         except Exception as e:
+            alert_message = {'type': 'danger', 'message': f"Error merging files: {str(e)}"}
+
             table_html = f"<p>Error reading file: {str(e)}</p>"
 
     # Handle search action
@@ -144,8 +218,12 @@ def uploadataforanalysis():
 
                     table_html = merged_df.to_html(classes="table table-striped-columns", index=False)
                 except Exception as e:
+                    alert_message = {'type': 'danger', 'message': f"Error merging files: {str(e)}"}
+
                     table_html = f"<p>Error reading file: {str(e)}</p>"
             else:
+                alert_message = {'type': 'danger', 'message': f"Error merging files: {str(e)}"}
+
                 table_html = f"<p>Error: File not found at {file_path}</p>"
         else:
             table_html = "<p>Error: No file selected for filtering.</p>"
@@ -156,7 +234,7 @@ def uploadataforanalysis():
         file_list=file_list,
         table_html=table_html,
         selected_file=request.form.get("selected_file"),
-        file_lis=file_lis
+        file_lis=file_lis,alert_message=alert_message
     )
 
 #filter
@@ -226,7 +304,8 @@ def filter_data():
     
 
 
-@app.route('/upload_master')
+
+@app.route('/upload_master', methods=['GET', 'POST'])
 def uploadmaster():
     file_list = [f for f in os.listdir(OUTPUT_FOLDER) if f.endswith(".xlsx")]  
     file_lis = [f for f in os.listdir(ACCESS_FOLDER) if f.endswith(".xlsx")]  
@@ -235,47 +314,45 @@ def uploadmaster():
     selected_fil = request.form.get("selected_fil", "")
 
     table_html = ""
+    alert_message = None  # Ensure it's always defined
 
-    if selected_file and selected_fil:
-        file_path1 = os.path.join(OUTPUT_FOLDER, selected_file)
-        file_path2 = os.path.join(ACCESS_FOLDER, selected_fil)
+    if request.method == "POST":  # Ensure this runs only for POST requests
+        if selected_file and selected_fil:
+            file_path1 = os.path.join(OUTPUT_FOLDER, selected_file)
+            file_path2 = os.path.join(ACCESS_FOLDER, selected_fil)
 
-        try:
-            df1 = pd.read_excel(file_path1)
-            df2 = pd.read_excel(file_path2)
+            try:
+                df1 = pd.read_excel(file_path1)
+                df2 = pd.read_excel(file_path2)
 
-            df1.columns = df1.columns.str.strip().str.lower()
-            df2.columns = df2.columns.str.strip().str.lower()
+                df1.columns = df1.columns.str.strip().str.lower()
+                df2.columns = df2.columns.str.strip().str.lower()
 
-            # print(df1[df1.duplicated(subset='email')])
-            # print(df2[df2.duplicated(subset='email')])
+                if "email" in df1.columns and "email" in df2.columns:
+                    df1["email"] = df1["email"].str.strip().str.lower()
+                    df2["email"] = df2["email"].str.strip().str.lower()
+                    merged_df = pd.merge(df1, df2, on="email", how="inner")
 
-          
+                    table_html = merged_df.to_html(classes="table table-striped-columns", index=False)
+                    merged_filename = f"merged_{secure_filename(selected_file)}_{secure_filename(selected_fil)}"
+                    merged_path = os.path.join(MERGED_FOLDER, merged_filename)
+                    merged_df.to_excel(merged_path, index=False)
 
-            # df1=df1.dropna[]
+                    alert_message = {'type': 'success', 'message': f'Merge successful! File saved .'}
+                else:
+                    alert_message = {'type': 'danger', 'message': "Error: 'email' column not found in one or both files."}
 
-            if "email" in df1.columns and "email" in df2.columns:
-                df1["email"] = df1["email"].str.strip().str.lower()
-                df2["email"] = df2["email"].str.strip().str.lower()
-                merged_df = pd.merge(df1, df2, on="email", how="inner") #merged
-                table_html = merged_df.to_html(classes="table table-striped-columns", index=False)
-                merged_filename = f"merged_{secure_filename(selected_file)}_{secure_filename(selected_fil)}"
-                merged_path = os.path.join(MERGED_FOLDER, merged_filename)
-                merged_df.to_excel(merged_path, index=False)
+            except Exception as e:
+                alert_message = {'type': 'danger', 'message': f"Error merging files: {str(e)}"}
 
-                # print(f"Merged DF Shape: {merged_df.shape}")
-                # print(f"Merged DF Sample:\n{merged_df.head()}")
-                print(merged_path)
-            else:
-                table_html = "<p>Error: 'email' column not found in one or both files.</p>"
+        else:
+            alert_message = {'type': 'warning', 'message': "Please select both files before merging."}
 
-        except Exception as e:
-            table_html = f"<p>Error merging files: {str(e)}</p>"
-       
-    # return jsonify(file_lis=file_lis)
+    # Debugging: Print alert message to check if it's being set
+    print("Alert Message:", alert_message)
 
     return render_template('upload_master.html', file_list=file_list, file_lis=file_lis, table_html=table_html, 
-                           selected_file=selected_file, selected_fil=selected_fil)
+                           selected_file=selected_file, selected_fil=selected_fil, alert_message=alert_message)
 
 # filter and download
 # visualization
@@ -300,80 +377,83 @@ def merge():
     table_html = ""
     male = ''
     female = ''
-    students=''
-    other=''
-    imgbase64=None
-    img_base64 = None  # Store the histogram image
+    students = ''
+    other = ''
+    img_base64 = None
+    imgbase64 = None
+    alert_message = None  # Store alert messages
 
-    if selected_file and selected_fil:
-        file_path1 = os.path.join(OUTPUT_FOLDER, selected_file)
-        file_path2 = os.path.join(ACCESS_FOLDER, selected_fil)
+    if request.method == "POST":  # Ensure merging happens on POST request
+        if selected_file and selected_fil:
+            file_path1 = os.path.join(OUTPUT_FOLDER, selected_file)
+            file_path2 = os.path.join(ACCESS_FOLDER, selected_fil)
 
-        try:
-            df1 = pd.read_excel(file_path1)
-            df2 = pd.read_excel(file_path2)
+            try:
+                df1 = pd.read_excel(file_path1)
+                df2 = pd.read_excel(file_path2)
 
-            df1.columns = df1.columns.str.strip().str.lower()
-            # df2.columns = df2.columns.str.strip().str.lower()
+                df1.columns = df1.columns.str.strip().str.lower()
+                df2.columns = df2.columns.astype(str).str.strip().str.lower()
 
-            df2.columns = df2.columns.astype(str).str.strip().str.lower()
-            
-            
+                if "email" in df1.columns and "email" in df2.columns:
+                    df1["email"] = df1["email"].str.strip().str.lower()
+                    df2["email"] = df2["email"].str.strip().str.lower()
+                    merged_df = pd.merge(df1, df2, on="email", how="inner")  # Merged data
 
-            if "email" in df1.columns and "email" in df2.columns:
-                df1["email"] = df1["email"].str.strip().str.lower()
-                df2["email"] = df2["email"].str.strip().str.lower()
-                merged_df = pd.merge(df1, df2, on="email", how="inner")  # Merged data
-                # merged_df = merged_df.drop(columns=["select training date","training time"])
+                    merged_df.columns = merged_df.columns.str.replace(r'(_x|_y)$', '', regex=True)
+                    female = merged_df['gender'].value_counts().get('Female', 0)
+                    male = merged_df['gender'].value_counts().get('Male', 0)
+                    other = merged_df['select your job category'].value_counts().get('Public Servant', 0)
+                    students = merged_df['select your job category'].value_counts().get('Other', 0)
 
-                merged_df.columns = merged_df.columns.str.replace(r'(_x|_y)$', '', regex=True)
-                female = merged_df['gender'].value_counts().get('Female', 0)
-                male = merged_df['gender'].value_counts().get('Male', 0)
-                other = merged_df['select your job category'].value_counts().get('Public Servant', 0)
-                students = merged_df['select your job category'].value_counts().get('Other', 0)
+                    # Convert merged data to HTML table
+                    table_html = merged_df.to_html(classes="table table-striped-columns", index=False)
+                    merged_filename = f"merged_{secure_filename(selected_file)}_{secure_filename(selected_fil)}.xlsx"
+                    merged_path = os.path.join(MERGED_FOLDER, merged_filename)
+                    merged_df.to_excel(merged_path, index=False)
 
-                
+                    # Generate gender distribution chart
+                    plt.figure(figsize=(6, 4))
+                    merged_df['gender'].value_counts().plot(kind='bar', color=['blue', 'blue'])
+                    plt.xlabel('Gender')
+                    plt.ylabel('Count')
+                    plt.title('Gender Distribution')
 
-                # Convert merged data to HTML table
-                table_html = merged_df.to_html(classes="table table-striped-columns", index=False)
-                merged_filename = f"merged_{secure_filename(selected_file)}_{secure_filename(selected_fil)}.xlsx"
-                merged_path = os.path.join(MERGED_FOLDER, merged_filename)
-                
-                merged_df.to_excel(merged_path, index=False)
-                
+                    # Convert plot to base64
+                    img_io = io.BytesIO()
+                    plt.savefig(img_io, format='png')
+                    img_io.seek(0)
+                    plt.close()
+                    img_base64 = base64.b64encode(img_io.getvalue()).decode('utf-8')
 
-                # Generate histogram
-                plt.figure(figsize=(6, 4))
-                df2['gender'].value_counts().plot(kind='bar', color=['blue', 'blue'])
-                plt.xlabel('Gender')
-                plt.ylabel('Count')
-                plt.title('Gender Distribution')
+                    # Generate job category distribution chart
+                    plt.figure(figsize=(6, 4))
+                    merged_df['select your job category'].value_counts().plot(kind='bar', color=['blue', 'blue'])
+                    plt.xlabel('Job')
+                    plt.ylabel('Count')
+                    plt.title('Category Distribution')
 
-                # Convert plot to base64
-                img_io = io.BytesIO()
-                plt.savefig(img_io, format='png')
-                img_io.seek(0)
-                plt.close()
-                img_base64 = base64.b64encode(img_io.getvalue()).decode('utf-8')
-                # print({img_base64})
-               
-                #students and other
-                plt.figure(figsize=(6, 4))
-                df2['select your job category'].value_counts().plot(kind='bar', color=['blue', 'blue'])
-                plt.xlabel('Job')
-                plt.ylabel('Count')
-                plt.title('Category interms of job Distribution')
+                    # Convert plot to base64
+                    img_io = io.BytesIO()
+                    plt.savefig(img_io, format='png')
+                    img_io.seek(0)
+                    plt.close()
+                    imgbase64 = base64.b64encode(img_io.getvalue()).decode('utf-8')
 
-                # Convert plot to base64
-                img_io = io.BytesIO()
-                plt.savefig(img_io, format='png')
-                img_io.seek(0)
-                plt.close()
-                imgbase64 = base64.b64encode(img_io.getvalue()).decode('utf-8')
+                    # Success alert message
+                    alert_message = {'type': 'success', 'message': f'Merge successful! File saved as {merged_filename}.'}
 
-        except Exception as e:
-            table_html = f"<p>Error merging files: {str(e)}</p>"
+                else:
+                    alert_message = {'type': 'danger', 'message': "Error: 'email' column not found in one or both files."}
 
+            except Exception as e:
+                alert_message = {'type': 'danger', 'message': f"Error merging files: {str(e)}"}
+
+        else:
+            alert_message = {'type': 'warning', 'message': "Please select both files before merging."}
+
+    # Debugging: Print alert message to Flask console
+    print("Alert Message:", alert_message)
 
     return render_template(
         'upload_master.html',
@@ -385,7 +465,10 @@ def merge():
         male=male,
         female=female,
         img_base64=img_base64,
-        imgbase64=imgbase64,other=other,students=students
+        imgbase64=imgbase64,
+        other=other,
+        students=students,
+        alert_message=alert_message  # Pass the alert message to the template
     )
 
 #posting the excel to be merged and validate with
@@ -431,7 +514,7 @@ def combine_excel():
             print(merged_df)
 
         # Save the cleaned file
-        merged_df = merged_df.drop(columns=["name_y","organization","select training date","training time"])
+        merged_df = merged_df.drop(columns=["organization","select training date","training time"])
         merged_df.columns = merged_df.columns.str.replace(r'(_x|_y)$', '', regex=True)
         merged_df = merged_df.rename(columns={'name_x': 'Full Name'})
 
@@ -479,64 +562,52 @@ def download_file(filename):
 def submit():
     try:
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+
         if 'file' not in request.files:
-            return jsonify({'error': 'No file part'}), 400
+            return jsonify({'status': 'error', 'message': 'No file part'}), 400
 
         f = request.files['file']
         if f.filename == '':
-            return jsonify({'error': 'No selected file'}), 400
-        
+            return jsonify({'status': 'error', 'message': 'No selected file'}), 400
+
         filename, file_extension = os.path.splitext(f.filename)
         newfile = f"{filename}_{timestamp}{file_extension}"
-
         file_path = os.path.join(UPLOAD_FOLDER, newfile)
         f.save(file_path)
 
         sheets_dict = pd.read_excel(file_path, sheet_name=None, engine="openpyxl")
 
         if not sheets_dict:
-            return jsonify({'error': 'Excel file is empty or unreadable'}), 400
+            return jsonify({'status': 'error', 'message': 'Excel file is empty or unreadable'}), 400
 
+        # Process sheets
         all_emails = []
-
-        # Process each sheet
-        cleaned_sheets = []
-        for sheet_name, df in sheets_dict.items():
-            df.columns = df.columns.astype(str).str.lower() 
+        for _, df in sheets_dict.items():
+            df.columns = df.columns.astype(str).str.lower()
             if 'email' in df.columns:
                 df = df.drop_duplicates(subset=['email'])
-                all_emails.append(df) 
-                cleaned_sheets.append(df)
+                all_emails.append(df)
 
-        if not cleaned_sheets:
-            return jsonify({'error': 'No valid sheets with an email column'}), 400
+        if not all_emails:
+            return jsonify({'status': 'error', 'message': 'No valid sheets with an email column'}), 400
 
-        # Combine all emails into a single DataFrame
         combined_df = pd.concat(all_emails, ignore_index=True)
-
-        # Count occurrences of each email
         email_counts = combined_df['email'].value_counts().reset_index()
         email_counts.columns = ['email', 'days']
 
-        # Merge email count back into the final merged sheet
-        merged_df = pd.concat(cleaned_sheets).drop_duplicates().merge(email_counts, on="email", how="left")
-
-        # emails = merged_df['email'].count()     
-        # print('count',emails)
-
-        # Save the cleaned file
+        merged_df = combined_df.drop_duplicates().merge(email_counts, on="email", how="left")
         output_filename = f"cleaned_{newfile}"
         output_path = os.path.join(OUTPUT_FOLDER, output_filename)
 
         with pd.ExcelWriter(output_path, engine="openpyxl") as writer:
             merged_df.to_excel(writer, sheet_name="Merged_Data", index=False)
 
-        print('Processing successful:', output_path)
-        return redirect(url_for('uploadataforanalysis'))
+        print(f'Processing successful: {output_path}')
+        return jsonify({'status': 'success', 'message': f'File processed successfully! Saved as {output_filename}'}), 200
 
     except Exception as e:
         print(f"Error: {e}")  # Debugging
-        return jsonify({'error': f'There was an error: {str(e)}'}), 500
+        return jsonify({'status': 'error', 'message': f'There was an error: {str(e)}'}), 500
 
 
 #counting

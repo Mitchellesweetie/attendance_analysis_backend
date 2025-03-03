@@ -1591,17 +1591,19 @@ margin-left:-30px;
 
         }
 </style>
+
 <div class="container py-4">
   <div class="row">
       <div class="col-xl-12">
+        <div id="alertMessage"></div>
           <!-- Upload Form -->
            <h5>Attendance Analysis</h5>
           <div class="card mb-4">
               <div class="card-body">
 
                   <h5 class="card-title mb-3">Upload Attendance</h5>
-                  <form action="/submit" method="post" enctype="multipart/form-data"  class="d-flex gap-3 align-items-center">
-                      <input type="file" name="file" class="form-control" required>
+                  <form method="post" enctype="multipart/form-data"  class="d-flex gap-3 align-items-center" id="uploadForm">
+                      <input type="file" name="file" class="form-control" id="file" required>
                       <button type="submit" class="btn btn-primary">Upload</button>
                   </form>
               </div>
@@ -1662,6 +1664,52 @@ margin-left:-30px;
       </div>
   </div>
 </div>
+<script>
+  document.getElementById("uploadForm").addEventListener("submit", function(event) {
+      event.preventDefault();
+      
+      let formData = new FormData();
+      let fileInput = document.getElementById("file").files[0];
+      
+      if (!fileInput) {
+          showAlert("danger", "Please select a file.");
+          return;
+      }
+      
+      formData.append("file", fileInput);
+  
+      fetch("/submit", {
+          method: "POST",
+          body: formData
+      })
+      .then(response => response.json())
+      .then(data => {
+          if (data.status === "success") {
+              showAlert("success", data.message);
+          } else {
+              showAlert("danger", data.message);
+          }
+      })
+      .catch(error => {
+          showAlert("danger", "An error occurred. Please try again.");
+          console.error("Error:", error);
+      });
+  });
+  function showAlert(type, message) {
+      let alertContainer = document.getElementById("alertMessage");
+      alertContainer.innerHTML = `
+          <div class="alert alert-${type} alert-dismissible fade show" role="alert">
+              ${message}
+              <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+          </div>
+      `;
+
+      // Automatically hide the alert after 5 seconds
+      setTimeout(() => {
+          alertContainer.innerHTML = "";
+      }, 5000);
+  }
+  </script>
 <div class="modal fade" id="modal-staff" style="display: none;" aria-hidden="true">
     <div class="modal-dialog modal-lg">
         <div class="modal-content">
